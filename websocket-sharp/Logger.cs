@@ -32,26 +32,36 @@ using System.IO;
 
 namespace WebSocketSharp
 {
-  /// <summary>
-  /// Provides a set of methods and properties for logging.
-  /// </summary>
-  /// <remarks>
-  ///   <para>
-  ///   If you output a log with lower than the value of the <see cref="Logger.Level"/> property,
-  ///   it cannot be outputted.
-  ///   </para>
-  ///   <para>
-  ///   The default output action writes a log to the standard output stream and the log file
-  ///   if the <see cref="Logger.File"/> property has a valid path to it.
-  ///   </para>
-  ///   <para>
-  ///   If you would like to use the custom output action, you should set
-  ///   the <see cref="Logger.Output"/> property to any <c>Action&lt;LogData, string&gt;</c>
-  ///   delegate.
-  ///   </para>
-  /// </remarks>
-  public class Logger
-  {
+    public interface IWebSocketLogger
+    {
+        void Debug(string message);
+        void Error(string message);
+        void Fatal(string message);
+        void Info(string message);
+        void Trace(string message);
+        void Warn(string message);
+    }
+
+    /// <summary>
+    /// Provides a set of methods and properties for logging.
+    /// </summary>
+    /// <remarks>
+    ///   <para>
+    ///   If you output a log with lower than the value of the <see cref="Logger.Level"/> property,
+    ///   it cannot be outputted.
+    ///   </para>
+    ///   <para>
+    ///   The default output action writes a log to the standard output stream and the log file
+    ///   if the <see cref="Logger.File"/> property has a valid path to it.
+    ///   </para>
+    ///   <para>
+    ///   If you would like to use the custom output action, you should set
+    ///   the <see cref="Logger.Output"/> property to any <c>Action&lt;LogData, string&gt;</c>
+    ///   delegate.
+    ///   </para>
+    /// </remarks>
+    public class Logger : IWebSocketLogger
+    {
     #region Private Fields
 
     private volatile string         _file;

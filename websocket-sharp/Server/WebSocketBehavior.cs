@@ -102,7 +102,7 @@ namespace WebSocketSharp.Server
     ///   </para>
     /// </value>
     [Obsolete ("This property will be removed.")]
-    protected Logger Log {
+    protected IWebSocketLogger Log {
       get {
         return _websocket != null ? _websocket.Log : null;
       }

@@ -96,7 +96,7 @@ namespace WebSocketSharp
     private bool                           _ignoreExtensions;
     private bool                           _inContinuation;
     private volatile bool                  _inMessage;
-    private volatile Logger                _logger;
+    private volatile IWebSocketLogger      _logger;
     private static readonly int            _maxRetryCountForConnect;
     private Action<MessageEventArgs>       _message;
     private Queue<MessageEventArgs>        _messageEventQueue;
@@ -544,12 +544,12 @@ namespace WebSocketSharp
     /// <value>
     /// A <see cref="Logger"/> that provides the logging function.
     /// </value>
-    public Logger Log {
+    public IWebSocketLogger Log {
       get {
         return _logger;
       }
 
-      internal set {
+      set {
         _logger = value;
       }
     }
