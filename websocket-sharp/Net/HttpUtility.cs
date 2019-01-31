@@ -65,52 +65,13 @@ namespace WebSocketSharp.Net
 
     static HttpUtility ()
     {
-      _hexChars = "0123456789abcdef".ToCharArray ();
+      _hexChars = "0123456789ABCDEF".ToCharArray ();
       _sync = new object ();
     }
 
     #endregion
 
     #region Private Methods
-
-    private static int getChar (byte[] bytes, int offset, int length)
-    {
-      var val = 0;
-      var end = length + offset;
-      for (var i = offset; i < end; i++) {
-        var current = getInt (bytes[i]);
-        if (current == -1)
-          return -1;
-
-        val = (val << 4) + current;
-      }
-
-      return val;
-    }
-
-    private static int getChar (string s, int offset, int length)
-    {
-      var val = 0;
-      var end = length + offset;
-      for (var i = offset; i < end; i++) {
-        var c = s[i];
-        if (c > 127)
-          return -1;
-
-        var current = getInt ((byte) c);
-        if (current == -1)
-          return -1;
-
-        val = (val << 4) + current;
-      }
-
-      return val;
-    }
-
-    private static char[] getChars (MemoryStream buffer, Encoding encoding)
-    {
-      return encoding.GetChars (buffer.GetBuffer (), 0, (int) buffer.Length);
-    }
 
     private static Dictionary<string, char> getEntities ()
     {
@@ -120,18 +81,6 @@ namespace WebSocketSharp.Net
 
         return _entities;
       }
-    }
-
-    private static int getInt (byte b)
-    {
-      var c = (char) b;
-      return c >= '0' && c <= '9'
-             ? c - '0'
-             : c >= 'a' && c <= 'f'
-               ? c - 'a' + 10
-               : c >= 'A' && c <= 'F'
-                 ? c - 'A' + 10
-                 : -1;
     }
 
     private static int getNumber (char c)
@@ -177,6 +126,160 @@ namespace WebSocketSharp.Net
       return ret;
     }
 
+    private static string htmlDecode (string s)
+    {
+      var buff = new StringBuilder ();
+
+      // 0: None
+      // 1: Right after '&'
+      // 2: Between '&' and ';' but no NCR
+      // 3: '#' found after '&' and getting numbers
+      // 4: 'x' found after '#' and getting numbers
+      var state = 0;
+
+      var reference = new StringBuilder ();
+      var num = 0;
+
+      foreach (var c in s) {
+        if (state == 0) {
+          if (c == '&') {
+            reference.Append ('&');
+            state = 1;
+
+            continue;
+          }
+
+          buff.Append (c);
+          continue;
+        }
+
+        if (c == '&') {
+          buff.Append (reference.ToString ());
+
+          reference.Length = 0;
+          reference.Append ('&');
+          state = 1;
+
+          continue;
+        }
+
+        reference.Append (c);
+
+        if (state == 1) {
+          if (c == ';') {
+            buff.Append (reference.ToString ());
+
+            reference.Length = 0;
+            state = 0;
+
+            continue;
+          }
+
+          num = 0;
+          state = c == '#' ? 3 : 2;
+
+          continue;
+        }
+
+        if (state == 2) {
+          if (c == ';') {
+            var entity = reference.ToString ();
+            var name = entity.Substring (1, entity.Length - 2);
+
+            var entities = getEntities ();
+            if (entities.ContainsKey (name))
+              buff.Append (entities[name]);
+            else
+              buff.Append (entity);
+
+            reference.Length = 0;
+            state = 0;
+
+            continue;
+          }
+
+          continue;
+        }
+
+        if (state == 3) {
+          if (c == ';') {
+            if (reference.Length > 3 && num < 65536)
+              buff.Append ((char) num);
+            else
+              buff.Append (reference.ToString ());
+
+            reference.Length = 0;
+            state = 0;
+
+            continue;
+          }
+
+          if (c == 'x') {
+            state = reference.Length == 3 ? 4 : 2;
+            continue;
+          }
+
+          if (!isNumeric (c)) {
+            state = 2;
+            continue;
+          }
+
+          num = num * 10 + (c - '0');
+          continue;
+        }
+
+        if (state == 4) {
+          if (c == ';') {
+            if (reference.Length > 4 && num < 65536)
+              buff.Append ((char) num);
+            else
+              buff.Append (reference.ToString ());
+
+            reference.Length = 0;
+            state = 0;
+
+            continue;
+          }
+
+          var n = getNumber (c);
+          if (n == -1) {
+            state = 2;
+            continue;
+          }
+
+          num = (num << 4) + n;
+        }
+      }
+
+      if (reference.Length > 0)
+        buff.Append (reference.ToString ());
+
+      return buff.ToString ();
+    }
+
+    /// <summary>
+    /// Converts the specified string to an HTML-encoded string.
+    /// </summary>
+    /// <remarks>
+    ///   <para>
+    ///   This method starts encoding with a NCR from the character code 160
+    ///   but does not stop at the character code 255.
+    ///   </para>
+    ///   <para>
+    ///   One reason is the unicode characters &#65308; and &#65310; that
+    ///   look like &lt; and &gt;.
+    ///   </para>
+    /// </remarks>
+    /// <returns>
+    /// A <see cref="string"/> that represents an encoded string.
+    /// </returns>
+    /// <param name="s">
+    /// A <see cref="string"/> to encode.
+    /// </param>
+    /// <param name="minimal">
+    /// A <see cref="bool"/>: <c>true</c> if encodes without a NCR;
+    /// otherwise, <c>false</c>.
+    /// </param>
     private static string htmlEncode (string s, bool minimal)
     {
       var buff = new StringBuilder ();
@@ -200,10 +303,15 @@ namespace WebSocketSharp.Net
       return buff.ToString ();
     }
 
+    /// <summary>
+    /// Initializes the _entities field.
+    /// </summary>
+    /// <remarks>
+    /// This method builds a dictionary of HTML character entity references.
+    /// This dictionary comes from the HTML 4.01 W3C recommendation.
+    /// </remarks>
     private static void initEntities ()
     {
-      // Build the dictionary of HTML entity references.
-      // This list comes from the HTML 4.01 W3C recommendation.
       _entities = new Dictionary<string, char> ();
       _entities.Add ("nbsp", '\u00A0');
       _entities.Add ("iexcl", '\u00A1');
@@ -559,11 +667,14 @@ namespace WebSocketSharp.Net
         }
       }
 
-      output.WriteByte ((byte) '%');
-
       var i = (int) b;
-      output.WriteByte ((byte) _hexChars[i >> 4]);
-      output.WriteByte ((byte) _hexChars[i & 0x0F]);
+      var bytes = new byte[] {
+                    (byte) '%',
+                    (byte) _hexChars[i >> 4],
+                    (byte) _hexChars[i & 0x0F]
+                  };
+
+      output.Write (bytes, 0, 3);
     }
 
     private static byte[] urlEncodeToBytes (byte[] bytes, int offset, int count)
@@ -576,32 +687,6 @@ namespace WebSocketSharp.Net
         buff.Close ();
         return buff.ToArray ();
       }
-    }
-
-    private static void urlPathEncode (char c, StringBuilder output)
-    {
-      if (c > 32 && c < 127) {
-        output.Append (c);
-        return;
-      }
-
-      var bytes = Encoding.UTF8.GetBytes (new[] { c });
-      foreach (var b in bytes) {
-        var i = (int) b;
-        output.AppendFormat ("%{0}{1}", _hexChars[i >> 4], _hexChars[i & 0x0F]);
-      }
-    }
-
-    private static void writeCharBytes (char c, IList buffer, Encoding encoding)
-    {
-      if (c > 255) {
-        foreach (var b in encoding.GetBytes (new[] { c }))
-          buffer.Add (b);
-
-        return;
-      }
-
-      buffer.Add ((byte) c);
     }
 
     #endregion
@@ -777,143 +862,26 @@ namespace WebSocketSharp.Net
       output.Write (htmlEncode (s, true));
     }
 
-    /// <summary>
-    /// Decodes an HTML-encoded <see cref="string"/> and returns the decoded <see cref="string"/>.
-    /// </summary>
-    /// <returns>
-    /// A <see cref="string"/> that represents the decoded string.
-    /// </returns>
-    /// <param name="s">
-    /// A <see cref="string"/> to decode.
-    /// </param>
     public static string HtmlDecode (string s)
     {
-      if (s == null || s.Length == 0 || !s.Contains ('&'))
-        return s;
+      if (s == null)
+        throw new ArgumentNullException ("s");
 
-      var entity = new StringBuilder ();
-      var output = new StringBuilder ();
-
-      // 0 -> nothing,
-      // 1 -> right after '&'
-      // 2 -> between '&' and ';' but no '#'
-      // 3 -> '#' found after '&' and getting numbers
-      var state = 0;
-
-      var number = 0;
-      var haveTrailingDigits = false;
-      foreach (var c in s) {
-        if (state == 0) {
-          if (c == '&') {
-            entity.Append (c);
-            state = 1;
-          }
-          else {
-            output.Append (c);
-          }
-
-          continue;
-        }
-
-        if (c == '&') {
-          state = 1;
-          if (haveTrailingDigits) {
-            entity.Append (number.ToString (CultureInfo.InvariantCulture));
-            haveTrailingDigits = false;
-          }
-
-          output.Append (entity.ToString ());
-          entity.Length = 0;
-          entity.Append ('&');
-
-          continue;
-        }
-
-        if (state == 1) {
-          if (c == ';') {
-            state = 0;
-            output.Append (entity.ToString ());
-            output.Append (c);
-            entity.Length = 0;
-          }
-          else {
-            number = 0;
-            if (c != '#')
-              state = 2;
-            else
-              state = 3;
-
-            entity.Append (c);
-          }
-        }
-        else if (state == 2) {
-          entity.Append (c);
-          if (c == ';') {
-            var key = entity.ToString ();
-            var entities = getEntities ();
-            if (key.Length > 1 && entities.ContainsKey (key.Substring (1, key.Length - 2)))
-              key = entities[key.Substring (1, key.Length - 2)].ToString ();
-
-            output.Append (key);
-            state = 0;
-            entity.Length = 0;
-          }
-        }
-        else if (state == 3) {
-          if (c == ';') {
-            if (number > 65535) {
-              output.Append ("&#");
-              output.Append (number.ToString (CultureInfo.InvariantCulture));
-              output.Append (";");
-            }
-            else {
-              output.Append ((char) number);
-            }
-
-            state = 0;
-            entity.Length = 0;
-            haveTrailingDigits = false;
-          }
-          else if (Char.IsDigit (c)) {
-            number = number * 10 + ((int) c - '0');
-            haveTrailingDigits = true;
-          }
-          else {
-            state = 2;
-            if (haveTrailingDigits) {
-              entity.Append (number.ToString (CultureInfo.InvariantCulture));
-              haveTrailingDigits = false;
-            }
-
-            entity.Append (c);
-          }
-        }
-      }
-
-      if (entity.Length > 0)
-        output.Append (entity.ToString ());
-      else if (haveTrailingDigits)
-        output.Append (number.ToString (CultureInfo.InvariantCulture));
-
-      return output.ToString ();
+      return s.Length > 0 ? htmlDecode (s) : s;
     }
 
-    /// <summary>
-    /// Decodes an HTML-encoded <see cref="string"/> and sends the decoded <see cref="string"/>
-    /// to the specified <see cref="TextWriter"/>.
-    /// </summary>
-    /// <param name="s">
-    /// A <see cref="string"/> to decode.
-    /// </param>
-    /// <param name="output">
-    /// A <see cref="TextWriter"/> that receives the decoded string.
-    /// </param>
     public static void HtmlDecode (string s, TextWriter output)
     {
+      if (s == null)
+        throw new ArgumentNullException ("s");
+
       if (output == null)
         throw new ArgumentNullException ("output");
 
-      output.Write (HtmlDecode (s));
+      if (s.Length == 0)
+        return;
+
+      output.Write (htmlDecode (s));
     }
 
     public static string HtmlEncode (string s)
@@ -945,49 +913,16 @@ namespace WebSocketSharp.Net
 
     public static string UrlDecode (string s, Encoding encoding)
     {
-      if (s == null || s.Length == 0 || !s.Contains ('%', '+'))
+      if (s == null)
+        throw new ArgumentNullException ("s");
+
+      if (s.Length == 0)
         return s;
 
-      if (encoding == null)
-        encoding = Encoding.UTF8;
-
-      var buff = new List<byte> ();
-      var len = s.Length;
-      for (var i = 0; i < len; i++) {
-        var c = s[i];
-        if (c == '%' && i + 2 < len && s[i + 1] != '%') {
-          int xchar;
-          if (s[i + 1] == 'u' && i + 5 < len) {
-            // Unicode hex sequence.
-            xchar = getChar (s, i + 2, 4);
-            if (xchar != -1) {
-              writeCharBytes ((char) xchar, buff, encoding);
-              i += 5;
-            }
-            else {
-              writeCharBytes ('%', buff, encoding);
-            }
-          }
-          else if ((xchar = getChar (s, i + 1, 2)) != -1) {
-            writeCharBytes ((char) xchar, buff, encoding);
-            i += 2;
-          }
-          else {
-            writeCharBytes ('%', buff, encoding);
-          }
-
-          continue;
-        }
-
-        if (c == '+') {
-          writeCharBytes (' ', buff, encoding);
-          continue;
-        }
-
-        writeCharBytes (c, buff, encoding);
-      }
-
-      return encoding.GetString (buff.ToArray ());
+      var bytes = Encoding.ASCII.GetBytes (s);
+      return (encoding ?? Encoding.UTF8).GetString (
+               urlDecodeToBytes (bytes, 0, bytes.Length)
+             );
     }
 
     public static string UrlDecode (byte[] bytes, Encoding encoding)
@@ -1196,22 +1131,6 @@ namespace WebSocketSharp.Net
 
       var bytes = (encoding ?? Encoding.UTF8).GetBytes (s);
       return urlEncodeToBytes (bytes, 0, bytes.Length);
-    }
-
-    public static string UrlPathEncode (string s)
-    {
-      if (s == null)
-        throw new ArgumentNullException ("s");
-
-      if (s.Length == 0)
-        return s;
-
-      var buff = new StringBuilder ();
-
-      foreach (var c in s)
-        urlPathEncode (c, buff);
-
-      return buff.ToString ();
     }
 
     #endregion
