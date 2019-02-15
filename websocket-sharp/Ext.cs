@@ -928,9 +928,11 @@ namespace WebSocketSharp
 
     internal static CompressionMethod ToCompressionMethod (this string value)
     {
-      foreach (CompressionMethod method in Enum.GetValues (typeof (CompressionMethod)))
+      var methods = Enum.GetValues (typeof (CompressionMethod));
+      foreach (CompressionMethod method in methods) {
         if (method.ToExtensionString () == value)
           return method;
+      }
 
       return CompressionMethod.None;
     }
@@ -969,7 +971,9 @@ namespace WebSocketSharp
       }
     }
 
-    internal static List<TSource> ToList<TSource> (this IEnumerable<TSource> source)
+    internal static List<TSource> ToList<TSource> (
+      this IEnumerable<TSource> source
+    )
     {
       return new List<TSource> (source);
     }
@@ -978,7 +982,8 @@ namespace WebSocketSharp
       this System.Net.IPAddress address, bool bracketIPv6
     )
     {
-      return bracketIPv6 && address.AddressFamily == AddressFamily.InterNetworkV6
+      return bracketIPv6
+             && address.AddressFamily == AddressFamily.InterNetworkV6
              ? String.Format ("[{0}]", address.ToString ())
              : address.ToString ();
     }

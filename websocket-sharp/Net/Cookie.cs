@@ -764,58 +764,66 @@ namespace WebSocketSharp.Net
     #region Public Methods
 
     /// <summary>
-    /// Determines whether the specified <see cref="Object"/> is equal to the current
-    /// <see cref="Cookie"/>.
+    /// Determines whether the current cookie instance is equal to
+    /// the specified <see cref="object"/> instance.
     /// </summary>
     /// <param name="comparand">
-    /// An <see cref="Object"/> to compare with the current <see cref="Cookie"/>.
+    ///   <para>
+    ///   An <see cref="object"/> instance to compare with
+    ///   the current cookie instance.
+    ///   </para>
+    ///   <para>
+    ///   An reference to a <see cref="Cookie"/> instance.
+    ///   </para>
     /// </param>
     /// <returns>
-    /// <c>true</c> if <paramref name="comparand"/> is equal to the current <see cref="Cookie"/>;
-    /// otherwise, <c>false</c>.
+    /// <c>true</c> if the current cookie instance is equal to
+    /// <paramref name="comparand"/>; otherwise, <c>false</c>.
     /// </returns>
-    public override bool Equals (Object comparand)
+    public override bool Equals (object comparand)
     {
       var cookie = comparand as Cookie;
-      return cookie != null &&
-             _name.Equals (cookie.Name, StringComparison.InvariantCultureIgnoreCase) &&
-             _value.Equals (cookie.Value, StringComparison.InvariantCulture) &&
-             _path.Equals (cookie.Path, StringComparison.InvariantCulture) &&
-             _domain.Equals (cookie.Domain, StringComparison.InvariantCultureIgnoreCase) &&
-             _version == cookie.Version;
+      return cookie != null
+             && _name.Equals (
+                  cookie._name, StringComparison.InvariantCultureIgnoreCase
+                )
+             && _value.Equals (
+                  cookie._value, StringComparison.InvariantCulture
+                )
+             && _path.Equals (
+                  cookie._path, StringComparison.InvariantCulture
+                )
+             && _domain.Equals (
+                  cookie._domain, StringComparison.InvariantCultureIgnoreCase
+                )
+             && _version == cookie._version;
     }
 
     /// <summary>
-    /// Serves as a hash function for a <see cref="Cookie"/> object.
+    /// Gets a hash code for the current cookie instance.
     /// </summary>
     /// <returns>
-    /// An <see cref="int"/> that represents the hash code for the current <see cref="Cookie"/>.
+    /// An <see cref="int"/> that represents the hash code.
     /// </returns>
     public override int GetHashCode ()
     {
       return hash (
-        StringComparer.InvariantCultureIgnoreCase.GetHashCode (_name),
-        _value.GetHashCode (),
-        _path.GetHashCode (),
-        StringComparer.InvariantCultureIgnoreCase.GetHashCode (_domain),
-        _version);
+               StringComparer.InvariantCultureIgnoreCase.GetHashCode (_name),
+               _value.GetHashCode (),
+               _path.GetHashCode (),
+               StringComparer.InvariantCultureIgnoreCase.GetHashCode (_domain),
+               _version
+             );
     }
 
     /// <summary>
-    /// Returns a <see cref="string"/> that represents the current <see cref="Cookie"/>.
+    /// Returns a string that represents the current cookie instance.
     /// </summary>
-    /// <remarks>
-    /// This method returns a <see cref="string"/> to use to send an HTTP Cookie to
-    /// an origin server.
-    /// </remarks>
     /// <returns>
-    /// A <see cref="string"/> that represents the current <see cref="Cookie"/>.
+    /// A <see cref="string"/> that is suitable for the Cookie request header.
     /// </returns>
     public override string ToString ()
     {
-      // i.e., only used for clients
-      // See para 4.2.2 of RFC 2109 and para 3.3.4 of RFC 2965
-      // See also bug #316017
       return ToRequestString (null);
     }
 
