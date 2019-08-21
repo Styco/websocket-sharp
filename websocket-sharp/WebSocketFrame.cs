@@ -383,7 +383,9 @@ namespace WebSocketSharp
       var payloadLen = frame._payloadLength;
 
       // Extended Payload Length
-      var extPayloadLen = payloadLen > 125 ? frame.FullPayloadLength.ToString () : String.Empty;
+      var extPayloadLen = payloadLen > 125
+                          ? frame.FullPayloadLength.ToString ()
+                          : String.Empty;
 
       // Masking Key
       var maskingKey = BitConverter.ToString (frame._maskingKey);
@@ -393,9 +395,12 @@ namespace WebSocketSharp
                     ? String.Empty
                     : payloadLen > 125
                       ? "---"
-                      : frame.IsText && !(frame.IsFragment || frame.IsMasked || frame.IsCompressed)
-                        ? frame._payloadData.ApplicationData.UTF8Decode ()
-                        : frame._payloadData.ToString ();
+                      : !frame.IsText
+                        || frame.IsFragment
+                        || frame.IsMasked
+                        || frame.IsCompressed
+                        ? frame._payloadData.ToString ()
+                        : utf8Decode (frame._payloadData.ApplicationData);
 
       var fmt = @"
                     FIN: {0}
@@ -410,17 +415,18 @@ Extended Payload Length: {7}
            Payload Data: {9}";
 
       return String.Format (
-        fmt,
-        frame._fin,
-        frame._rsv1,
-        frame._rsv2,
-        frame._rsv3,
-        frame._opcode,
-        frame._mask,
-        payloadLen,
-        extPayloadLen,
-        maskingKey,
-        payload);
+               fmt,
+               frame._fin,
+               frame._rsv1,
+               frame._rsv2,
+               frame._rsv3,
+               frame._opcode,
+               frame._mask,
+               payloadLen,
+               extPayloadLen,
+               maskingKey,
+               payload
+             );
     }
 
     private static WebSocketFrame processHeader (byte[] header)
@@ -629,6 +635,16 @@ Extended Payload Length: {7}
       }
 
       stream.ReadBytesAsync (llen, 1024, compl, error);
+    }
+
+    private static string utf8Decode (byte[] bytes)
+    {
+      try {
+        return Encoding.UTF8.GetString (bytes);
+      }
+      catch {
+        return null;
+      }
     }
 
     #endregion

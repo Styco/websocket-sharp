@@ -172,24 +172,28 @@ namespace WebSocketSharp
 
     internal static byte[] Append (this ushort code, string reason)
     {
-      var ret = code.InternalToByteArray (ByteOrder.Big);
-      if (reason != null && reason.Length > 0) {
-        var buff = new List<byte> (ret);
-        buff.AddRange (Encoding.UTF8.GetBytes (reason));
-        ret = buff.ToArray ();
-      }
+      var bytes = code.InternalToByteArray (ByteOrder.Big);
 
-      return ret;
+      if (reason == null || reason.Length == 0)
+        return bytes;
+
+      var buff = new List<byte> (bytes);
+      buff.AddRange (Encoding.UTF8.GetBytes (reason));
+
+      return buff.ToArray ();
     }
 
-    internal static void Close (this HttpListenerResponse response, HttpStatusCode code)
+    internal static void Close (
+      this HttpListenerResponse response, HttpStatusCode code
+    )
     {
       response.StatusCode = (int) code;
       response.OutputStream.Close ();
     }
 
     internal static void CloseWithAuthChallenge (
-      this HttpListenerResponse response, string challenge)
+      this HttpListenerResponse response, string challenge
+    )
     {
       response.Headers.InternalSet ("WWW-Authenticate", challenge, true);
       response.Close (HttpStatusCode.Unauthorized);
@@ -314,12 +318,20 @@ namespace WebSocketSharp
       return dest;
     }
 
-    internal static void CopyTo (this Stream source, Stream destination, int bufferLength)
+    internal static void CopyTo (
+      this Stream source, Stream destination, int bufferLength
+    )
     {
       var buff = new byte[bufferLength];
       var nread = 0;
-      while ((nread = source.Read (buff, 0, bufferLength)) > 0)
+
+      while (true) {
+        nread = source.Read (buff, 0, bufferLength);
+        if (nread <= 0)
+          break;
+
         destination.Write (buff, 0, nread);
+      }
     }
 
     internal static void CopyToAsync (
@@ -327,29 +339,31 @@ namespace WebSocketSharp
       Stream destination,
       int bufferLength,
       Action completed,
-      Action<Exception> error)
+      Action<Exception> error
+    )
     {
       var buff = new byte[bufferLength];
 
       AsyncCallback callback = null;
-      callback = ar => {
-        try {
-          var nread = source.EndRead (ar);
-          if (nread <= 0) {
-            if (completed != null)
-              completed ();
+      callback =
+        ar => {
+          try {
+            var nread = source.EndRead (ar);
+            if (nread <= 0) {
+              if (completed != null)
+                completed ();
 
-            return;
+              return;
+            }
+
+            destination.Write (buff, 0, nread);
+            source.BeginRead (buff, 0, bufferLength, callback, null);
           }
-
-          destination.Write (buff, 0, nread);
-          source.BeginRead (buff, 0, bufferLength, callback, null);
-        }
-        catch (Exception ex) {
-          if (error != null)
-            error (ex);
-        }
-      };
+          catch (Exception ex) {
+            if (error != null)
+              error (ex);
+          }
+        };
 
       try {
         source.BeginRead (buff, 0, bufferLength, callback, null);
@@ -493,6 +507,16 @@ namespace WebSocketSharp
       return idx > 0 ? nameAndValue.Substring (0, idx).Trim () : null;
     }
 
+    internal static string GetUTF8DecodedString (this byte[] bytes)
+    {
+      return Encoding.UTF8.GetString (bytes);
+    }
+
+    internal static byte[] GetUTF8EncodedBytes (this string s)
+    {
+      return Encoding.UTF8.GetBytes (s);
+    }
+
     /// <summary>
     /// Gets the value from the specified string that contains a pair of
     /// name and value separated by a character.
@@ -550,22 +574,28 @@ namespace WebSocketSharp
       return unquote ? val.Unquote () : val;
     }
 
-    internal static byte[] InternalToByteArray (this ushort value, ByteOrder order)
+    internal static byte[] InternalToByteArray (
+      this ushort value, ByteOrder order
+    )
     {
-      var bytes = BitConverter.GetBytes (value);
-      if (!order.IsHostOrder ())
-        Array.Reverse (bytes);
+      var ret = BitConverter.GetBytes (value);
 
-      return bytes;
+      if (!order.IsHostOrder ())
+        Array.Reverse (ret);
+
+      return ret;
     }
 
-    internal static byte[] InternalToByteArray (this ulong value, ByteOrder order)
+    internal static byte[] InternalToByteArray (
+      this ulong value, ByteOrder order
+    )
     {
-      var bytes = BitConverter.GetBytes (value);
-      if (!order.IsHostOrder ())
-        Array.Reverse (bytes);
+      var ret = BitConverter.GetBytes (value);
 
-      return bytes;
+      if (!order.IsHostOrder ())
+        Array.Reverse (ret);
+
+      return ret;
     }
 
     internal static bool IsCompressionExtension (
@@ -664,7 +694,7 @@ namespace WebSocketSharp
         if (c < 0x20)
           return false;
 
-        if (c >= 0x7f)
+        if (c > 0x7e)
           return false;
 
         if (_tspecials.IndexOf (c) > -1)
@@ -693,42 +723,56 @@ namespace WebSocketSharp
     {
       var buff = new byte[length];
       var offset = 0;
-      try {
-        var nread = 0;
-        while (length > 0) {
-          nread = stream.Read (buff, offset, length);
-          if (nread == 0)
-            break;
+      var retry = 0;
+      var nread = 0;
 
-          offset += nread;
-          length -= nread;
+      while (length > 0) {
+        nread = stream.Read (buff, offset, length);
+        if (nread <= 0) {
+          if (retry < _retry) {
+            retry++;
+            continue;
+          }
+
+          return buff.SubArray (0, offset);
         }
-      }
-      catch {
+
+        retry = 0;
+
+        offset += nread;
+        length -= nread;
       }
 
-      return buff.SubArray (0, offset);
+      return buff;
     }
 
-    internal static byte[] ReadBytes (this Stream stream, long length, int bufferLength)
+    internal static byte[] ReadBytes (
+      this Stream stream, long length, int bufferLength
+    )
     {
       using (var dest = new MemoryStream ()) {
-        try {
-          var buff = new byte[bufferLength];
-          var nread = 0;
-          while (length > 0) {
-            if (length < bufferLength)
-              bufferLength = (int) length;
+        var buff = new byte[bufferLength];
+        var retry = 0;
+        var nread = 0;
 
-            nread = stream.Read (buff, 0, bufferLength);
-            if (nread == 0)
-              break;
+        while (length > 0) {
+          if (length < bufferLength)
+            bufferLength = (int) length;
 
-            dest.Write (buff, 0, nread);
-            length -= nread;
+          nread = stream.Read (buff, 0, bufferLength);
+          if (nread <= 0) {
+            if (retry < _retry) {
+              retry++;
+              continue;
+            }
+
+            break;
           }
-        }
-        catch {
+
+          retry = 0;
+
+          dest.Write (buff, 0, nread);
+          length -= nread;
         }
 
         dest.Close ();
@@ -737,7 +781,10 @@ namespace WebSocketSharp
     }
 
     internal static void ReadBytesAsync (
-      this Stream stream, int length, Action<byte[]> completed, Action<Exception> error
+      this Stream stream,
+      int length,
+      Action<byte[]> completed,
+      Action<Exception> error
     )
     {
       var buff = new byte[length];
@@ -749,16 +796,23 @@ namespace WebSocketSharp
         ar => {
           try {
             var nread = stream.EndRead (ar);
-            if (nread == 0 && retry < _retry) {
-              retry++;
-              stream.BeginRead (buff, offset, length, callback, null);
+            if (nread <= 0) {
+              if (retry < _retry) {
+                retry++;
+                stream.BeginRead (buff, offset, length, callback, null);
+
+                return;
+              }
+
+              if (completed != null)
+                completed (buff.SubArray (0, offset));
 
               return;
             }
 
             if (nread == length) {
               if (completed != null)
-                completed (buff.SubArray (0, offset + nread));
+                completed (buff);
 
               return;
             }
@@ -810,17 +864,26 @@ namespace WebSocketSharp
             ar => {
               try {
                 var nread = stream.EndRead (ar);
-                if (nread > 0)
-                  dest.Write (buff, 0, nread);
+                if (nread <= 0) {
+                  if (retry < _retry) {
+                    retry++;
+                    read (len);
 
-                if (nread == 0 && retry < _retry) {
-                  retry++;
-                  read (len);
+                    return;
+                  }
 
+                  if (completed != null) {
+                    dest.Close ();
+                    completed (dest.ToArray ());
+                  }
+
+                  dest.Dispose ();
                   return;
                 }
 
-                if (nread == 0 || nread == len) {
+                dest.Write (buff, 0, nread);
+
+                if (nread == len) {
                   if (completed != null) {
                     dest.Close ();
                     completed (dest.ToArray ());
@@ -831,6 +894,7 @@ namespace WebSocketSharp
                 }
 
                 retry = 0;
+
                 read (len - nread);
               }
               catch (Exception ex) {
@@ -1182,45 +1246,38 @@ namespace WebSocketSharp
       return HttpUtility.UrlEncode (value, encoding);
     }
 
-    internal static string UTF8Decode (this byte[] bytes)
+    internal static void WriteBytes (
+      this Stream stream, byte[] bytes, int bufferLength
+    )
     {
-      try {
-        return Encoding.UTF8.GetString (bytes);
-      }
-      catch {
-        return null;
-      }
-    }
-
-    internal static byte[] UTF8Encode (this string s)
-    {
-      return Encoding.UTF8.GetBytes (s);
-    }
-
-    internal static void WriteBytes (this Stream stream, byte[] bytes, int bufferLength)
-    {
-      using (var input = new MemoryStream (bytes))
-        input.CopyTo (stream, bufferLength);
+      using (var src = new MemoryStream (bytes))
+        src.CopyTo (stream, bufferLength);
     }
 
     internal static void WriteBytesAsync (
-      this Stream stream, byte[] bytes, int bufferLength, Action completed, Action<Exception> error)
+      this Stream stream,
+      byte[] bytes,
+      int bufferLength,
+      Action completed,
+      Action<Exception> error
+    )
     {
-      var input = new MemoryStream (bytes);
-      input.CopyToAsync (
+      var src = new MemoryStream (bytes);
+      src.CopyToAsync (
         stream,
         bufferLength,
         () => {
           if (completed != null)
             completed ();
 
-          input.Dispose ();
+          src.Dispose ();
         },
         ex => {
-          input.Dispose ();
+          src.Dispose ();
           if (error != null)
             error (ex);
-        });
+        }
+      );
     }
 
     #endregion
@@ -1402,10 +1459,14 @@ namespace WebSocketSharp
     /// </param>
     public static bool IsEnclosedIn (this string value, char c)
     {
-      return value != null
-             && value.Length > 1
-             && value[0] == c
-             && value[value.Length - 1] == c;
+      if (value == null)
+        return false;
+
+      var len = value.Length;
+      if (len < 2)
+        return false;
+
+      return value[0] == c && value[len - 1] == c;
     }
 
     /// <summary>
@@ -1540,7 +1601,10 @@ namespace WebSocketSharp
     /// </param>
     public static bool MaybeUri (this string value)
     {
-      if (value == null || value.Length == 0)
+      if (value == null)
+        return false;
+
+      if (value.Length == 0)
         return false;
 
       var idx = value.IndexOf (':');
@@ -1555,36 +1619,78 @@ namespace WebSocketSharp
     }
 
     /// <summary>
-    /// Retrieves a sub-array from the specified <paramref name="array"/>. A sub-array starts at
-    /// the specified element position in <paramref name="array"/>.
+    /// Retrieves a sub-array from the specified array. A sub-array starts at
+    /// the specified index in the array.
     /// </summary>
     /// <returns>
-    /// An array of T that receives a sub-array, or an empty array of T if any problems with
-    /// the parameters.
+    /// An array of T that receives a sub-array.
     /// </returns>
     /// <param name="array">
     /// An array of T from which to retrieve a sub-array.
     /// </param>
     /// <param name="startIndex">
-    /// An <see cref="int"/> that represents the zero-based starting position of
-    /// a sub-array in <paramref name="array"/>.
+    /// An <see cref="int"/> that represents the zero-based index in the array
+    /// at which retrieving starts.
     /// </param>
     /// <param name="length">
     /// An <see cref="int"/> that represents the number of elements to retrieve.
     /// </param>
     /// <typeparam name="T">
-    /// The type of elements in <paramref name="array"/>.
+    /// The type of elements in the array.
     /// </typeparam>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="array"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///   <para>
+    ///   <paramref name="startIndex"/> is less than zero.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="startIndex"/> is greater than the end of the array.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="length"/> is less than zero.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="length"/> is greater than the number of elements from
+    ///   <paramref name="startIndex"/> to the end of the array.
+    ///   </para>
+    /// </exception>
     public static T[] SubArray<T> (this T[] array, int startIndex, int length)
     {
-      int len;
-      if (array == null || (len = array.Length) == 0)
+      if (array == null)
+        throw new ArgumentNullException ("array");
+
+      var len = array.Length;
+      if (len == 0) {
+        if (startIndex != 0)
+          throw new ArgumentOutOfRangeException ("startIndex");
+
+        if (length != 0)
+          throw new ArgumentOutOfRangeException ("length");
+
+        return array;
+      }
+
+      if (startIndex < 0 || startIndex >= len)
+        throw new ArgumentOutOfRangeException ("startIndex");
+
+      if (length < 0 || length > len - startIndex)
+        throw new ArgumentOutOfRangeException ("length");
+
+      if (length == 0)
         return new T[0];
 
-      if (startIndex < 0 || length <= 0 || startIndex + length > len)
-        return new T[0];
-
-      if (startIndex == 0 && length == len)
+      if (length == len)
         return array;
 
       var subArray = new T[length];
@@ -1594,36 +1700,78 @@ namespace WebSocketSharp
     }
 
     /// <summary>
-    /// Retrieves a sub-array from the specified <paramref name="array"/>. A sub-array starts at
-    /// the specified element position in <paramref name="array"/>.
+    /// Retrieves a sub-array from the specified array. A sub-array starts at
+    /// the specified index in the array.
     /// </summary>
     /// <returns>
-    /// An array of T that receives a sub-array, or an empty array of T if any problems with
-    /// the parameters.
+    /// An array of T that receives a sub-array.
     /// </returns>
     /// <param name="array">
     /// An array of T from which to retrieve a sub-array.
     /// </param>
     /// <param name="startIndex">
-    /// A <see cref="long"/> that represents the zero-based starting position of
-    /// a sub-array in <paramref name="array"/>.
+    /// A <see cref="long"/> that represents the zero-based index in the array
+    /// at which retrieving starts.
     /// </param>
     /// <param name="length">
     /// A <see cref="long"/> that represents the number of elements to retrieve.
     /// </param>
     /// <typeparam name="T">
-    /// The type of elements in <paramref name="array"/>.
+    /// The type of elements in the array.
     /// </typeparam>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="array"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///   <para>
+    ///   <paramref name="startIndex"/> is less than zero.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="startIndex"/> is greater than the end of the array.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="length"/> is less than zero.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   <paramref name="length"/> is greater than the number of elements from
+    ///   <paramref name="startIndex"/> to the end of the array.
+    ///   </para>
+    /// </exception>
     public static T[] SubArray<T> (this T[] array, long startIndex, long length)
     {
-      long len;
-      if (array == null || (len = array.LongLength) == 0)
+      if (array == null)
+        throw new ArgumentNullException ("array");
+
+      var len = array.LongLength;
+      if (len == 0) {
+        if (startIndex != 0)
+          throw new ArgumentOutOfRangeException ("startIndex");
+
+        if (length != 0)
+          throw new ArgumentOutOfRangeException ("length");
+
+        return array;
+      }
+
+      if (startIndex < 0 || startIndex >= len)
+        throw new ArgumentOutOfRangeException ("startIndex");
+
+      if (length < 0 || length > len - startIndex)
+        throw new ArgumentOutOfRangeException ("length");
+
+      if (length == 0)
         return new T[0];
 
-      if (startIndex < 0 || length <= 0 || startIndex + length > len)
-        return new T[0];
-
-      if (startIndex == 0 && length == len)
+      if (length == len)
         return array;
 
       var subArray = new T[length];
