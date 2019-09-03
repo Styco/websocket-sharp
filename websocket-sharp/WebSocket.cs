@@ -998,7 +998,8 @@ namespace WebSocketSharp
 
       if (!response.IsWebSocketResponse) {
         message = "Not a WebSocket handshake response.";
-        return false;
+                Log.Error(response.ToString());
+                return false;
       }
 
       var headers = response.Headers;

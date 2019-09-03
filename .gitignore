@@ -17,3 +17,4 @@ UpgradeLog*.*
 /.vs/websocket-sharp/v15/Server/sqlite3/storage.ide
 /.vs/websocket-sharp/v15/Server/sqlite3/db.lock
 /.vs/websocket-sharp/v16/Server/sqlite3
+/.vs/websocket-sharp/v16/TestStore/0
