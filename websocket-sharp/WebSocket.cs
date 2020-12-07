@@ -997,8 +997,7 @@ namespace WebSocketSharp
       }
 
       if (!response.IsWebSocketResponse) {
-        message = "Not a WebSocket handshake response.";
-                Log.Error(response.ToString());
+        message = $"Not a WebSocket handshake response: {response.EntityBody} ({response.StatusCode} {response.Reason})";
                 return false;
       }
 
