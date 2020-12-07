@@ -5,7 +5,7 @@
  * The MIT License
  *
  * Copyright (c) 2014 liryna
- * Copyright (c) 2014-2017 sta.blockhead
+ * Copyright (c) 2014-2020 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,8 @@ namespace WebSocketSharp.Net
     #region Public Constructors
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ServerSslConfiguration"/> class.
+    /// Initializes a new instance of the <see cref="ServerSslConfiguration"/>
+    /// class.
     /// </summary>
     public ServerSslConfiguration ()
     {
@@ -153,8 +154,8 @@ namespace WebSocketSharp.Net
     }
 
     /// <summary>
-    /// Gets or sets the callback used to validate the certificate
-    /// supplied by the client.
+    /// Gets or sets the callback used to validate the certificate supplied by
+    /// the client.
     /// </summary>
     /// <remarks>
     /// The certificate is valid if the callback returns <c>true</c>.
@@ -165,8 +166,8 @@ namespace WebSocketSharp.Net
     ///   invokes the method called for validating the certificate.
     ///   </para>
     ///   <para>
-    ///   The default value is a delegate that invokes a method that
-    ///   only returns <c>true</c>.
+    ///   The default value is a delegate that invokes a method that only
+    ///   returns <c>true</c>.
     ///   </para>
     /// </value>
     public RemoteCertificateValidationCallback ClientCertificateValidationCallback {
@@ -187,8 +188,10 @@ namespace WebSocketSharp.Net
     /// </summary>
     /// <value>
     ///   <para>
-    ///   The <see cref="SslProtocols"/> enum values that represent
-    ///   the protocols used for authentication.
+    ///   Any of the <see cref="SslProtocols"/> enum values.
+    ///   </para>
+    ///   <para>
+    ///   It represents the protocols used for authentication.
     ///   </para>
     ///   <para>
     ///   The default value is <see cref="SslProtocols.None"/>.
@@ -209,11 +212,13 @@ namespace WebSocketSharp.Net
     /// </summary>
     /// <value>
     ///   <para>
-    ///   A <see cref="X509Certificate2"/> or <see langword="null"/>
-    ///   if not specified.
+    ///   A <see cref="X509Certificate2"/> or <see langword="null"/>.
     ///   </para>
     ///   <para>
-    ///   That instance represents an X.509 certificate.
+    ///   The certificate represents an X.509 certificate.
+    ///   </para>
+    ///   <para>
+    ///   The default value is <see langword="null"/>.
     ///   </para>
     /// </value>
     public X509Certificate2 ServerCertificate {
