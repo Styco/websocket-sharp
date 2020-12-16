@@ -774,6 +774,17 @@ namespace WebSocketSharp
       }
     }
 
+    /// <summary>
+    /// Gets the number of queued, unemitted messages
+    /// </summary>
+    public int MessageQueueSize { 
+      get {
+        lock (_forMessageEventQueue) {
+          return _messageEventQueue.Count;
+        }
+      }
+    }
+
     #endregion
 
     #region Public Events
