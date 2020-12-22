@@ -1008,11 +1008,17 @@ namespace WebSocketSharp
       }
 
       if (!response.IsWebSocketResponse) {
-        message = $"Not a WebSocket handshake response: {response.EntityBody} ({response.StatusCode} {response.Reason})";
-                return false;
+        if (!string.IsNullOrEmpty(response.EntityBody)) {
+          string[] entityBodyLines = response.EntityBody.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+          message = $"Not a WebSocket handshake response: {entityBodyLines[0]}{(entityBodyLines.Length > 1 ? "... (truncated)" : string.Empty)} ({response.StatusCode} {response.Reason})";
+        }
+        else {
+          message = $"Not a WebSocket handshake response ({response.StatusCode} {response.Reason})";
+        }
+        return false;
       }
 
-      var headers = response.Headers;
+            var headers = response.Headers;
       if (!validateSecWebSocketAcceptHeader (headers["Sec-WebSocket-Accept"])) {
         message = "Includes no Sec-WebSocket-Accept header, or it has an invalid value.";
         return false;
