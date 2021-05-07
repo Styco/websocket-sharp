@@ -65,7 +65,7 @@ namespace WebSocketSharp.Server
     private bool                               _dnsStyle;
     private string                             _hostname;
     private TcpListener                        _listener;
-    private Logger                             _log;
+    private IWebSocketLogger                   _log;
     private int                                _port;
     private string                             _realm;
     private string                             _realmInUse;
@@ -468,9 +468,13 @@ namespace WebSocketSharp.Server
     /// <value>
     /// A <see cref="Logger"/> that provides the logging function.
     /// </value>
-    public Logger Log {
+    public IWebSocketLogger Log {
       get {
         return _log;
+      }
+
+      set {
+        _log = value;
       }
     }
 

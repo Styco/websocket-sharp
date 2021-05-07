@@ -49,7 +49,7 @@ namespace WebSocketSharp.Server
 
     private volatile bool                            _clean;
     private Dictionary<string, WebSocketServiceHost> _hosts;
-    private Logger                                   _log;
+    private IWebSocketLogger                         _log;
     private volatile ServerState                     _state;
     private object                                   _sync;
     private TimeSpan                                 _waitTime;
@@ -58,7 +58,7 @@ namespace WebSocketSharp.Server
 
     #region Internal Constructors
 
-    internal WebSocketServiceManager (Logger log)
+    internal WebSocketServiceManager (IWebSocketLogger log)
     {
       _log = log;
 

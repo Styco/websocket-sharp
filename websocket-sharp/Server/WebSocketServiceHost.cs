@@ -50,7 +50,7 @@ namespace WebSocketSharp.Server
   {
     #region Private Fields
 
-    private Logger                  _log;
+    private IWebSocketLogger        _log;
     private string                  _path;
     private WebSocketSessionManager _sessions;
 
@@ -68,7 +68,7 @@ namespace WebSocketSharp.Server
     /// <param name="log">
     /// A <see cref="Logger"/> that represents the logging function for the service.
     /// </param>
-    protected WebSocketServiceHost (string path, Logger log)
+    protected WebSocketServiceHost (string path, IWebSocketLogger log)
     {
       _path = path;
       _log = log;
@@ -96,7 +96,7 @@ namespace WebSocketSharp.Server
     /// <value>
     /// A <see cref="Logger"/> that provides the logging function.
     /// </value>
-    protected Logger Log {
+    protected IWebSocketLogger Log {
       get {
         return _log;
       }

@@ -50,7 +50,7 @@ namespace WebSocketSharp.Server
 
     private volatile bool                         _clean;
     private object                                _forSweep;
-    private Logger                                _log;
+    private IWebSocketLogger                      _log;
     private Dictionary<string, IWebSocketSession> _sessions;
     private volatile ServerState                  _state;
     private volatile bool                         _sweeping;
@@ -62,7 +62,7 @@ namespace WebSocketSharp.Server
 
     #region Internal Constructors
 
-    internal WebSocketSessionManager (Logger log)
+    internal WebSocketSessionManager (IWebSocketLogger log)
     {
       _log = log;
 

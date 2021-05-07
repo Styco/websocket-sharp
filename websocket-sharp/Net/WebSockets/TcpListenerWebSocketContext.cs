@@ -52,7 +52,7 @@ namespace WebSocketSharp.Net.WebSockets
   {
     #region Private Fields
 
-    private Logger              _log;
+    private IWebSocketLogger    _log;
     private NameValueCollection _queryString;
     private HttpRequest         _request;
     private Uri                 _requestUri;
@@ -73,7 +73,7 @@ namespace WebSocketSharp.Net.WebSockets
       string protocol,
       bool secure,
       ServerSslConfiguration sslConfig,
-      Logger log
+      IWebSocketLogger log
     )
     {
       _tcpClient = tcpClient;
@@ -113,7 +113,7 @@ namespace WebSocketSharp.Net.WebSockets
 
     #region Internal Properties
 
-    internal Logger Log {
+    internal IWebSocketLogger Log {
       get {
         return _log;
       }
